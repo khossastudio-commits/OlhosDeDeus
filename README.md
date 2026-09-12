@@ -1,245 +1,169 @@
-<div align="center">
+# OLHOS DE DEUS
 
-# ⬡ OSIRIS
+## A visão inteligente de Moçambique
 
-### Open Source Intelligence & Reconnaissance Integrated System
+**OLHOS DE DEUS** é uma plataforma de consciência situacional nacional baseada em dados públicos e fontes explicitamente autorizadas.
 
-[![Live Demo](https://img.shields.io/badge/osirisai.live-00E5FF?style=for-the-badge&logo=vercel&logoColor=white)](https://osirislive.app)
-[![Support OSIRIS](https://img.shields.io/badge/Support_Project-Patreon-FF424D?style=for-the-badge&logo=patreon&logoColor=white)](https://www.patreon.com/posts/159077425)
-[![Next.js](https://img.shields.io/badge/Next.js-16-black?style=for-the-badge&logo=next.js)](https://nextjs.org)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?style=for-the-badge&logo=typescript&logoColor=white)](https://typescriptlang.org)
-[![MapLibre](https://img.shields.io/badge/MapLibre_GL-GPU_Rendered-396CB2?style=for-the-badge)](https://maplibre.org)
-[![License](https://img.shields.io/badge/License-MIT-D4AF37?style=for-the-badge)](LICENSE)
+O objetivo é transformar sinais dispersos — clima, sismos, incêndios, aviação, atividade marítima, notícias, alertas e outras fontes legítimas — numa visão operacional única, verificável e geográfica.
 
-**A real-time global intelligence dashboard that aggregates live flight tracking, CCTV networks, earthquake monitoring, conflict zone mapping, and 24/7 news feeds into a single GPU-accelerated interface.**
+> **Ver. Compreender. Antecipar. Agir.**
 
-[Live Demo](https://osirisai.live) · [Report Bug](https://github.com/simplifaisoul/osiris/issues) · [Request Feature](https://github.com/simplifaisoul/osiris/issues) · [Join Discord](https://discord.gg/umBykEpb98)
+## Princípio fundamental
 
-</div>
+OLHOS DE DEUS não é uma ferramenta de vigilância privada. A plataforma segue um modelo **public-and-authorized-data**:
 
----
+- apenas APIs públicas, datasets abertos e transmissões/câmaras explicitamente públicas;
+- fontes institucionais apenas quando houver autorização;
+- cada evento deve manter origem, momento de recolha e termos/licença quando disponíveis;
+- não recolhe contas privadas, credenciais vazadas, dados pessoais não públicos nem acessa câmaras sem autorização;
+- observação e interpretação são separadas: um sinal não é automaticamente uma conclusão.
 
-## Overview
+## Command Center
 
-Osiris is a production-grade OSINT platform that provides situational awareness across multiple intelligence domains. Built with Next.js 16 and MapLibre GL, every data point is rendered via WebGL for 60fps performance even with thousands of concurrent entities on-screen.
+A rota `/olhos` é o centro nacional da plataforma. Ela apresenta:
 
-### Key Capabilities
+- globo 3D interactivo baseado em MapLibre;
+- foco inicial em Moçambique;
+- camadas nacionais activáveis;
+- estado `LIVE`, `SYNCING` ou `DEGRADED`;
+- contagem real de eventos por camada;
+- detalhe e proveniência de eventos;
+- actualização automática do quadro nacional;
+- governação de fontes visível na interface.
 
-| Domain | Data Points | Sources |
-|--------|------------|---------|
-| **Aviation** | Commercial, Private, Military, Jets | OpenSky Network |
-| **Maritime** | 39 Global Ports, 10 Chokepoints | Static Naval Intel |
-| **CCTV** | 17,000+ Cameras | TfL, WSDOT, Caltrans, ODOT, MDOT, HK Transport Dept, Taiwan THB, NZTA + more |
-| **Seismic** | Real-time M2.5+ | USGS Earthquake API |
-| **Fires** | Active Hotspots | NASA FIRMS |
-| **News** | 24/7 Live Streams | 25+ Global Broadcasters |
-| **Weather** | Severe Events | NASA EONET |
-| **Space** | Solar Weather, Satellites | NOAA SWPC, N2YO |
-| **Cyber** | CVE Threats, Vulnerability Scanning | NVD, Custom Scanner |
-| **Conflict** | 13 Active Zones | Static OSINT Intel |
-| **Crypto** | BTC + ETH Wallet Tracing, OFAC SDN Match | blockstream.info, Blockscout, OpenSanctions |
-| **Sanctions** | Person / Org / Vessel SDN Search | OpenSanctions (US OFAC SDN mirror) |
-| **Telegram OSINT** | Geoparsed Posts from Public Channels | `t.me/s/<channel>` web preview |
+MapLibre suporta a projecção `globe` e renderização WebGL para mapas interactivos. Consulte a documentação oficial para detalhes da projecção. 
 
----
+## Arquitectura
 
-## Architecture
-
-```
-┌─────────────────────────────────────────────────┐
-│                  OSIRIS CLIENT                   │
-│  ┌──────────┐  ┌──────────┐  ┌───────────────┐ │
-│  │ MapLibre  │  │  HUD     │  │  RECON Toolkit│ │
-│  │  GL (GPU) │  │ Panels   │  │  Port Scan    │ │
-│  │  WebGL    │  │ Layers   │  │  DNS / WHOIS  │ │
-│  │  Render   │  │ Controls │  │  Vuln Scanner │ │
-│  └──────────┘  └──────────┘  └───────────────┘ │
-├─────────────────────────────────────────────────┤
-│               NEXT.JS API ROUTES                 │
-│  /api/flights         /api/earthquakes          │
-│  /api/cctv            /api/news                 │
-│  /api/fires           /api/maritime             │
-│  /api/gdelt           /api/satellites           │
-│  /api/weather         /api/scanner              │
-│  /api/sentinel        /api/telegram-feed        │
-│  /api/osint/*  (whois, dns, ip, cve, sanctions, │
-│                 crypto, sweep, threats, …)      │
-├─────────────────────────────────────────────────┤
-│              EXTERNAL DATA SOURCES               │
-│  OpenSky · USGS · NASA · NOAA · TfL · NVD      │
-│  GDACS · EONET · FIRMS · N2YO · RSS Feeds      │
-│  blockstream.info · Blockscout · OpenSanctions  │
-│  t.me public previews                            │
-└─────────────────────────────────────────────────┘
+```text
+┌─────────────────────────────────────────────┐
+│              OLHOS DE DEUS UI               │
+│       Command Center · Globe · Layers       │
+├─────────────────────────────────────────────┤
+│             Normalized Event Model           │
+│  source · observedAt · location · severity  │
+├─────────────────────────────────────────────┤
+│               Next.js API Routes              │
+│ /api/olhos/overview                          │
+│ /api/olhos/earthquakes                       │
+│ /api/olhos/weather                           │
+├─────────────────────────────────────────────┤
+│          Public / Authorized Sources          │
+│ USGS · Open-Meteo · NASA FIRMS · ...        │
+└─────────────────────────────────────────────┘
 ```
 
----
+## Dados actualmente integrados
 
-## Features
+### Sismos — USGS
 
-### Intelligence Layers
-- **16 toggleable data layers** with real-time entity counts
-- **GPU-accelerated rendering** — all map data rendered via WebGL, not DOM
-- **Progressive loading** — data fetched on-demand when layers are activated
-- **Viewport-aware** — only loads relevant data for the visible region
+O adaptador usa o feed GeoJSON público de sismos M2.5+ e filtra os eventos pelo território definido para Moçambique. Os eventos são normalizados para o contrato de inteligência do projecto.
 
-### RECON Toolkit
-- **Port Scanner** — TCP connect scan with service fingerprinting
-- **DNS Lookup** — Full record resolution (A, AAAA, MX, NS, TXT, CNAME)
-- **WHOIS** — Domain/IP registration data (auto-cross-checked against OFAC SDN)
-- **SSL/TLS Inspector** — Certificate chain analysis
-- **IP Intelligence** — Geolocation, ASN, threat reputation (auto-cross-checked against OFAC SDN)
-- **Vulnerability Scanner** — CVE lookup against NVD database
-- **Crypto Wallet Trace** — BTC + ETH lookup (balance, tx history, OFAC SDN sanctions flag)
-- **OFAC Sanctions Search** — query persons, organizations, vessels and aircraft against the US OFAC SDN list
+### Meteorologia — Open-Meteo
 
-### Live Broadcast Network
-- **25+ live 24/7 news streams** from global broadcasters
-- Click any news dot on the map to open the live stream
-- Feeds from NBC, CBS, ABC, Sky News, Al Jazeera, France 24, NHK, WION, and more
+O centro nacional consulta condições actuais para o centro geográfico de Moçambique. A API oferece condições actuais e previsões através de modelos meteorológicos globais; a documentação publicada pela Open-Meteo indica licença CC BY 4.0 para os dados/API públicos. 
 
-### Telegram OSINT Layer
-- **Public-channel feed** scraped from the unauthenticated `t.me/s/<channel>` web preview — no Bot API token, no MTProto
-- Default curated set of 5 channels (EN + RU/UA war reporting), overridable via `OSIRIS_TELEGRAM_CHANNELS`
-- Posts are geoparsed against a multilingual place dictionary (EN + Cyrillic + Arabic) and plotted on the map
-- Click any cyan dot to read the post and jump to the original on Telegram
+### Incêndios — NASA FIRMS
 
-### Crypto Wallet Intelligence
-- **BTC** lookups via [blockstream.info](https://blockstream.info) (Esplora API, keyless)
-- **ETH** lookups via [Blockscout](https://github.com/blockscout/blockscout)'s public ETH instance (`eth.blockscout.com`, keyless)
-- Every lookup is cross-checked against the OFAC SDN sanctioned-address list (mirrored from [`0xB10C/ofac-sanctioned-digital-currency-addresses`](https://github.com/0xB10C/ofac-sanctioned-digital-currency-addresses))
-- Sanctioned wallets surface a red **SANCTIONED — OFAC SDN** badge in the RECON panel
+A estrutura do adaptador FIRMS está preparada, mas a ingestão programática depende de uma chave `FIRMS_MAP_KEY`. Sem essa credencial, a plataforma não inventa hotspots: a fonte permanece indisponível.
 
-### OFAC SDN Cross-Check
-- Standalone `SANCTIONS` tab in the RECON toolkit — full-text search across persons, organisations, vessels and aircraft
-- WHOIS and IP-intel routes auto-cross-check registrant / ASN-owner names against the SDN list and surface an inline alert
-- Data sourced from [OpenSanctions](https://www.opensanctions.org) (CC-BY 4.0) — keyless, ~7 MB cached in-memory for 24h
+## Camadas previstas
 
-### Conflict Zone Monitoring
-- **13 active conflict/tension zones** with severity-coded warning markers
-- Active Wars: Ukraine, Gaza, Sudan, Myanmar, DRC, Yemen
-- High Tension: Syria, Lebanon, Sahel, Somalia, Red Sea
-- Elevated: Taiwan Strait, Korean DMZ
+| Camada | Estado |
+|---|---|
+| Alertas | estrutura pronta |
+| Clima | **integrado** |
+| Desastres | estrutura pronta |
+| Incêndios | adaptador preparado / chave necessária |
+| Sismos | **integrado** |
+| Aviação | integração futura |
+| Marítimo | integração futura / feed autorizado |
+| Câmaras públicas | catálogo público/autorizado |
+| Notícias | integração futura |
+| Satélites | integração futura |
 
-### Performance Optimized
-- **75% reduction in edge requests** vs initial release
-- Aggressive polling relaxation (15-30 min intervals for stable data)
-- Static data served from memory (zero external API calls for news feeds)
-- `layerFetchedRef` prevents duplicate API requests
+A ausência de uma fonte não é substituída por dados simulados.
 
----
+## API nacional
 
-## Quick Start
+`GET /api/olhos/overview` devolve um snapshot normalizado com:
+
+- país e área operacional;
+- timestamp de geração;
+- fontes disponíveis;
+- eventos;
+- contagens por camada;
+- saúde dos feeds.
+
+`GET /api/olhos/earthquakes` devolve eventos sísmicos filtrados para Moçambique.
+
+`GET /api/olhos/weather` devolve condições meteorológicas actuais para o centro nacional.
+
+## Modelo de evento
+
+Cada evento segue, em essência:
+
+```ts
+{
+  id,
+  layer,
+  title,
+  summary,
+  severity,
+  observedAt,
+  location,
+  source,
+  confidence,
+  tags
+}
+```
+
+A proveniência faz parte do produto, não é um detalhe opcional.
+
+## Desenvolvimento
 
 ```bash
-git clone https://github.com/simplifaisoul/osiris.git
-cd osiris
+git clone https://github.com/khossastudio-commits/OlhosDeDeus.git
+cd OlhosDeDeus
 npm install
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000)
+Depois, abra `http://localhost:3000/olhos`.
 
-### Docker / Self-Hosting
+## Variáveis de ambiente
 
-```bash
-git clone https://github.com/simplifaisoul/osiris.git
-cd osiris
-cp .env.template .env     # optional — configure keys / port
-docker compose up -d
-```
-
-Open [http://localhost:3000](http://localhost:3000). The image is a multi-stage
-`node:22-alpine` standalone build (~220 MB, non-root). The compose file also
-carries CasaOS app metadata (`x-casaos:`) for one-click install on
-[CasaOS](https://casaos.io). See **[DOCKER.md](DOCKER.md)** for the full Docker,
-CasaOS and API-key guide.
-
-**Prebuilt image (GHCR)** — skip the build and pull it directly:
-
-```bash
-docker pull ghcr.io/simplifaisoul/osiris:latest
-docker run -d -p 3000:3000 --env-file .env ghcr.io/simplifaisoul/osiris:latest
-```
-
-**Custom port** — the container always listens on `3000`; set `OSIRIS_PORT` in
-`.env` to change the published host port (e.g. `OSIRIS_PORT=3005`) without
-editing the compose file.
-
-### Environment Variables
-
-OSIRIS works **partially without any API keys** — all core feeds use public,
-keyless sources. Copy [`.env.template`](.env.template) to `.env` and set only
-what you need:
+A regra é simples: **segredos ficam no servidor e nunca no cliente**.
 
 ```env
-# Published host port (container always listens on 3000). Default: 3000
-OSIRIS_PORT=3000
-
-# RECON scanner backend (the only vars the current code reads).
-# SCANNER_KEY must match the backend's OSIRIS_KEY — generate with: openssl rand -hex 32
-SCANNER_URL=
-SCANNER_KEY=
-
-# Optional, for higher rate limits / future sources (see DOCKER.md for signup links)
-FIRMS_API_KEY=                # NASA FIRMS  — firms.modaps.eosdis.nasa.gov/api/map_key/
-OPENSKY_CLIENT_ID=            # OpenSky OAuth2 (since Mar 2025) — opensky-network.org
-OPENSKY_CLIENT_SECRET=
-N2YO_API_KEY=                 # N2YO satellites — n2yo.com (Profile → API key)
-AIS_API_KEY=                 # aisstream.io maritime
+# Opcional — necessário para ingestão programática NASA FIRMS
+FIRMS_MAP_KEY=
 ```
 
-> Without `SCANNER_URL`/`SCANNER_KEY` the RECON toolkit returns `503`; every
-> other layer works out of the box. `.env` is gitignored — only the template is committed.
+Outras integrações podem adicionar credenciais próprias quando forem oficialmente autorizadas.
+
+## Próximas integrações
+
+1. NASA FIRMS com chave server-side.
+2. Alertas meteorológicos e hidrológicos relevantes para Moçambique.
+3. Fontes de aviação com limites de uso claros.
+4. Dados marítimos através de fornecedor autorizado.
+5. Catálogo de webcams/câmaras que sejam inequivocamente públicas.
+6. Notícias com RSS/API e geolocalização responsável.
+7. Motor de correlação para ligar eventos relacionados.
+8. Camada de IA para produzir resumos com fontes e nível de confiança.
+9. Histórico temporal e replay de eventos.
+10. Integrações institucionais apenas através de acordos e APIs autorizadas.
+
+## Segurança
+
+Este projecto herda uma base OSINT open-source, mas a versão OLHOS DE DEUS deve permanecer orientada a consciência situacional defensiva, dados públicos e integrações autorizadas. Funcionalidades de intrusão, acesso não autorizado ou recolha de dados privados não fazem parte do produto nacional.
+
+## Licença
+
+O projecto mantém a licença MIT do código-base open-source. Consulte `LICENSE` para os termos completos.
 
 ---
 
-## Tech Stack
-
-| Layer | Technology |
-|-------|-----------|
-| Framework | Next.js 16 (App Router, Turbopack) |
-| Language | TypeScript 5 |
-| Map Engine | MapLibre GL JS (WebGL) |
-| Animations | Framer Motion |
-| Icons | Lucide React |
-| Styling | Custom CSS Design System |
-| Deployment | Vercel Edge Network |
-
----
-
-## Keyboard Shortcuts
-
-| Key | Action |
-|-----|--------|
-| `F` | Toggle flight layers |
-| `E` | Toggle earthquakes |
-| `S` | Toggle satellites |
-| `D` | Toggle day/night cycle |
-| `Escape` | Close panels |
-
----
-
-## License
-
-MIT — see [LICENSE](LICENSE) for details.
-
----
-
-<div align="center">
-
-**🛠️ SUPPORT THE OSIRIS PROJECT**
-The OSIRIS Global Intelligence Grid is entirely open-source, but running the backend scanners and data firehoses isn't cheap.
-
-If you want to help keep the servers alive, and support us to get access to better tools  unlock the **Special OSIRIS Console**, Currently Just a Cool UI. a you can officially support the project here : 
-
-🔗 [Support OSIRIS on Patreon](https://www.patreon.com/posts/159077425)
-
-*Supporters receive the `🔴 RedTeam Console` role and access to encrypted developer comms.*
-
-
-**Built by [simplifaisoul](https://github.com/simplifaisoul)**
-
-[Join our Discord to be a part of this movement!](https://discord.gg/umBykEpb98)
-
-</div>
+**OLHOS DE DEUS**  
+**Observação · Localização · Inteligência · Operacional · Situacional**
