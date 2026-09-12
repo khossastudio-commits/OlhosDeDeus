@@ -6,6 +6,12 @@ import { Activity, AlertTriangle, CloudRain, Flame, Radio, Satellite, Ship, Plan
 import { MOZAMBIQUE, OLHOS_LAYERS, type OlhosLayerId } from '@/lib/mozambique';
 
 const OsirisMap = dynamic(() => import('@/components/OsirisMap'), { ssr: false });
+const OlhosCameraViewer = dynamic(() => import('@/components/OlhosCameraViewer'), { ssr: false });
+
+type CameraData = {
+  id: string; lat: number; lng: number; name: string; city?: string; country?: string; source?: string;
+  feed_url?: string; stream_url?: string; stream_type?: string; external_url?: string; publisher?: string;
+};
 
 const ICONS: Record<OlhosLayerId, typeof Activity> = {
   alerts: AlertTriangle, weather: CloudRain, disasters: Activity, fires: Flame, earthquakes: Activity,
@@ -28,8 +34,11 @@ type Focus = { lat: number; lng: number; zoom?: number; ts: number };
 export default function OlhosCommandCenter() {
   const [activeLayers, setActiveLayers] = useState<Record<string, boolean>>(Object.fromEntries(OLHOS_LAYERS.map((layer) => [layer.id, true])));
   const [overview, setOverview] = useState<Overview | null>(null);
+  const [cameras, setCameras] = useState<CameraData[]>([]);
   const [selectedEvent, setSelectedEvent] = useState<IntelEvent | null>(null);
+  const [selectedCamera, setSelectedCamera] = useState<CameraData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [cameraLoading, setCameraLoading] = useState(true);
   const [focus, setFocus] = useState<Focus | null>(null);
 
   const loadOverview = useCallback(async () => {
@@ -42,11 +51,28 @@ export default function OlhosCommandCenter() {
     finally { setLoading(false); }
   }, []);
 
+  const loadCameras = useCallback(async () => {
+    setCameraLoading(true);
+    try {
+      const response = await fetch('/api/olhos/cameras', { cache: 'no-store' });
+      if (!response.ok) throw new Error('camera catalogue unavailable');
+      const payload = await response.json();
+      setCameras(Array.isArray(payload.cameras) ? payload.cameras : []);
+    } catch { setCameras([]); }
+    finally { setCameraLoading(false); }
+  }, []);
+
   useEffect(() => {
     void loadOverview();
     const timer = window.setInterval(() => void loadOverview(), 60_000);
     return () => window.clearInterval(timer);
   }, [loadOverview]);
+
+  useEffect(() => {
+    void loadCameras();
+    const timer = window.setInterval(() => void loadCameras(), 5 * 60_000);
+    return () => window.clearInterval(timer);
+  }, [loadCameras]);
 
   const mapData = useMemo(() => {
     const events = overview?.events ?? [];
@@ -54,8 +80,8 @@ export default function OlhosCommandCenter() {
     const fires = events.filter((e) => e.layer === 'fires' && e.location).map((e) => ({ id: e.id, lat: e.location!.latitude, lng: e.location!.longitude, confidence: (e.confidence ?? 0) * 100 }));
     const weather = events.filter((e) => e.layer === 'weather' && e.location).map((e) => ({ id: e.id, lat: e.location!.latitude, lng: e.location!.longitude, title: e.title, icon: 'weather' }));
     const disasters = events.filter((e) => e.layer === 'disasters' && e.location).map((e) => ({ id: e.id, lat: e.location!.latitude, lng: e.location!.longitude, magnitude: 4, place: e.summary ?? e.title, depth: 0, source: e.source?.name ?? 'GDACS' }));
-    return { earthquakes, fires, weather, disasters };
-  }, [overview]);
+    return { earthquakes, fires, weather, disasters, cameras };
+  }, [overview, cameras]);
 
   const flyToMozambique = useMemo(() => ({ lat: MOZAMBIQUE.center.latitude, lng: MOZAMBIQUE.center.longitude, zoom: MOZAMBIQUE.defaultZoom, ts: 1 }), []);
   const toggleLayer = (id: OlhosLayerId) => setActiveLayers((current) => ({ ...current, [id]: !current[id] }));
@@ -65,10 +91,12 @@ export default function OlhosCommandCenter() {
   const visibleEvents = (overview?.events ?? []).filter((event) => activeLayers[event.layer]);
   const alertEvents = (overview?.events ?? []).filter((event) => event.layer === 'alerts');
   const inspectEvent = (event: IntelEvent) => { setSelectedEvent(event); if (event.location) setFocus({ lat: event.location.latitude, lng: event.location.longitude, zoom: 7, ts: Date.now() }); };
+  const inspectCamera = (camera: CameraData) => { setSelectedCamera(camera); setFocus({ lat: camera.lat, lng: camera.lng, zoom: 10, ts: Date.now() }); };
+  const layerCount = (id: OlhosLayerId) => id === 'cameras' ? cameras.length : (overview?.counts?.[id] ?? 0);
 
   return (
     <main className="relative h-screen w-screen overflow-hidden bg-[#05070a] text-white font-mono">
-      <div className="absolute inset-0"><OsirisMap data={mapData} activeLayers={activeLayers} projection="globe" flyToLocation={focus ?? flyToMozambique} theme="core" /></div>
+      <div className="absolute inset-0"><OsirisMap data={mapData} activeLayers={activeLayers} onEntityClick={(entity) => { if (entity?.type === 'cctv' || entity?.camera || entity?.feed_url) inspectCamera(entity.camera ?? entity); }} projection="globe" flyToLocation={focus ?? flyToMozambique} theme="core" /></div>
       <header className="absolute top-0 left-0 right-0 z-30 pointer-events-none"><div className="m-3 flex items-start justify-between gap-3">
         <section className="pointer-events-auto rounded-lg border border-white/10 bg-[#070a0f]/90 px-4 py-3 shadow-2xl backdrop-blur-xl"><div className="flex items-center gap-2"><Crosshair className="h-4 w-4 text-[var(--gold-primary)]" /><span className="text-xs font-bold tracking-[0.28em] text-[var(--gold-primary)]">OLHOS DE DEUS</span></div><div className="mt-1 text-[10px] tracking-[0.18em] text-white/50">NATIONAL SITUATION AWARENESS</div><div className={`mt-2 flex items-center gap-2 text-[9px] ${statusClass}`}><span className="h-1.5 w-1.5 rounded-full bg-current" />{statusLabel} · PUBLIC / AUTHORIZED DATA</div></section>
         <section className="pointer-events-auto hidden md:block rounded-lg border border-white/10 bg-[#070a0f]/90 px-4 py-3 text-right backdrop-blur-xl"><div className="text-[9px] tracking-[0.2em] text-white/40">AREA OF OPERATIONS</div><div className="mt-1 text-sm font-bold tracking-[0.15em]">MOÇAMBIQUE · MZ</div><div className="mt-1 text-[9px] text-white/40">{MOZAMBIQUE.center.latitude.toFixed(4)} / {MOZAMBIQUE.center.longitude.toFixed(4)}</div></section>
@@ -76,11 +104,13 @@ export default function OlhosCommandCenter() {
 
       {alertEvents.length > 0 && <div className="absolute left-1/2 top-3 z-40 hidden -translate-x-1/2 md:block"><button type="button" onClick={() => inspectEvent(alertEvents[0])} className="flex items-center gap-2 rounded border border-orange-400/30 bg-[#140d08]/90 px-4 py-2 text-[8px] font-bold tracking-[0.16em] text-orange-200 shadow-2xl backdrop-blur-xl"><Siren className="h-3.5 w-3.5" />{alertEvents.length} DERIVED ALERT{alertEvents.length === 1 ? '' : 'S'} · VERIFY BEFORE ACTION</button></div>}
 
-      <aside className="absolute left-3 top-28 z-20 w-56 max-w-[calc(100vw-24px)] rounded-lg border border-white/10 bg-[#070a0f]/90 p-3 shadow-2xl backdrop-blur-xl"><div className="mb-2 flex items-center justify-between border-b border-white/10 pb-2"><span className="text-[9px] font-bold tracking-[0.2em] text-white/60">NATIONAL LAYERS</span><Database className="h-3.5 w-3.5 text-white/30" /></div><div className="space-y-1">{OLHOS_LAYERS.map((layer) => { const Icon = ICONS[layer.id]; const enabled = Boolean(activeLayers[layer.id]); const count = overview?.counts?.[layer.id] ?? 0; return <button key={layer.id} type="button" onClick={() => toggleLayer(layer.id)} className={`flex w-full items-center justify-between rounded px-2 py-1.5 text-left text-[9px] tracking-wide transition ${enabled ? 'bg-white/[0.07] text-white' : 'text-white/30 hover:bg-white/[0.04]'}`}><span className="flex items-center gap-2"><Icon className="h-3 w-3" />{layer.label}</span><span className="flex items-center gap-2"><span className="text-white/35">{count}</span><span className={`h-1.5 w-1.5 rounded-full ${enabled ? 'bg-emerald-400' : 'bg-white/20'}`} /></span></button>; })}</div><button type="button" onClick={() => void loadOverview()} className="mt-3 flex w-full items-center justify-center gap-2 rounded border border-white/10 px-2 py-2 text-[8px] tracking-[0.15em] text-white/50 hover:bg-white/5"><RefreshCw className={`h-3 w-3 ${loading ? 'animate-spin' : ''}`} /> REFRESH INTELLIGENCE</button></aside>
+      <aside className="absolute left-3 top-28 z-20 w-56 max-w-[calc(100vw-24px)] rounded-lg border border-white/10 bg-[#070a0f]/90 p-3 shadow-2xl backdrop-blur-xl"><div className="mb-2 flex items-center justify-between border-b border-white/10 pb-2"><span className="text-[9px] font-bold tracking-[0.2em] text-white/60">NATIONAL LAYERS</span><Database className="h-3.5 w-3.5 text-white/30" /></div><div className="space-y-1">{OLHOS_LAYERS.map((layer) => { const Icon = ICONS[layer.id]; const enabled = Boolean(activeLayers[layer.id]); const count = layerCount(layer.id); return <button key={layer.id} type="button" onClick={() => toggleLayer(layer.id)} className={`flex w-full items-center justify-between rounded px-2 py-1.5 text-left text-[9px] tracking-wide transition ${enabled ? 'bg-white/[0.07] text-white' : 'text-white/30 hover:bg-white/[0.04]'}`}><span className="flex items-center gap-2"><Icon className="h-3 w-3" />{layer.label}</span><span className="flex items-center gap-2"><span className="text-white/35">{count}</span><span className={`h-1.5 w-1.5 rounded-full ${enabled ? 'bg-emerald-400' : 'bg-white/20'}`} /></span></button>; })}</div><button type="button" onClick={() => { void loadOverview(); void loadCameras(); }} className="mt-3 flex w-full items-center justify-center gap-2 rounded border border-white/10 px-2 py-2 text-[8px] tracking-[0.15em] text-white/50 hover:bg-white/5"><RefreshCw className={`h-3 w-3 ${(loading || cameraLoading) ? 'animate-spin' : ''}`} /> REFRESH INTELLIGENCE</button></aside>
 
-      <aside className="absolute right-3 top-28 z-20 w-72 max-w-[calc(100vw-24px)] rounded-lg border border-white/10 bg-[#070a0f]/90 p-3 shadow-2xl backdrop-blur-xl"><div className="mb-3 flex items-center justify-between border-b border-white/10 pb-2"><span className="text-[9px] font-bold tracking-[0.2em] text-white/60">SITUATION</span><Activity className="h-3.5 w-3.5 text-[var(--cyan-primary)]" /></div><div className="grid grid-cols-3 gap-2"><div className="rounded border border-white/[0.06] bg-white/[0.025] p-2"><div className="text-[8px] text-white/35">EVENTS</div><div className="mt-1 text-sm font-bold">{overview?.counts?.total ?? '—'}</div></div><div className="rounded border border-white/[0.06] bg-white/[0.025] p-2"><div className="text-[8px] text-white/35">FEEDS</div><div className="mt-1 text-sm font-bold">{overview?.health?.liveFeedCount ?? 0}/{overview?.health?.totalFeeds ?? 0}</div></div><div className="rounded border border-white/[0.06] bg-white/[0.025] p-2"><div className="text-[8px] text-white/35">ALERTS</div><div className="mt-1 text-sm font-bold">{alertEvents.length}</div></div></div><div className="mt-3 max-h-64 space-y-1.5 overflow-y-auto pr-1">{visibleEvents.length === 0 ? <div className="rounded border border-white/[0.06] p-3 text-[8px] leading-relaxed text-white/35">No verified events are currently available for the active layers.</div> : visibleEvents.map((event) => <button key={event.id} type="button" onClick={() => inspectEvent(event)} className="w-full rounded border border-white/[0.06] bg-white/[0.025] p-2 text-left hover:bg-white/[0.06]"><div className="flex items-center justify-between gap-2"><span className="truncate text-[9px] font-bold text-white/80">{event.title}</span><span className="text-[7px] uppercase text-white/30">{event.layer}</span></div>{event.summary && <div className="mt-1 text-[8px] text-white/40">{event.summary}</div>}</button>)}</div></aside>
+      <aside className="absolute right-3 top-28 z-20 w-72 max-w-[calc(100vw-24px)] rounded-lg border border-white/10 bg-[#070a0f]/90 p-3 shadow-2xl backdrop-blur-xl"><div className="mb-3 flex items-center justify-between border-b border-white/10 pb-2"><span className="text-[9px] font-bold tracking-[0.2em] text-white/60">SITUATION</span><Activity className="h-3.5 w-3.5 text-[var(--cyan-primary)]" /></div><div className="grid grid-cols-3 gap-2"><div className="rounded border border-white/[0.06] bg-white/[0.025] p-2"><div className="text-[8px] text-white/35">EVENTS</div><div className="mt-1 text-sm font-bold">{overview?.counts?.total ?? '—'}</div></div><div className="rounded border border-white/[0.06] bg-white/[0.025] p-2"><div className="text-[8px] text-white/35">FEEDS</div><div className="mt-1 text-sm font-bold">{overview?.health?.liveFeedCount ?? 0}/{overview?.health?.totalFeeds ?? 0}</div></div><div className="rounded border border-white/[0.06] bg-white/[0.025] p-2"><div className="text-[8px] text-white/35">CAMERAS</div><div className="mt-1 text-sm font-bold">{cameras.length}</div></div></div><div className="mt-3 max-h-64 space-y-1.5 overflow-y-auto pr-1">{visibleEvents.length === 0 ? <div className="rounded border border-white/[0.06] p-3 text-[8px] leading-relaxed text-white/35">No verified events are currently available for the active layers.</div> : visibleEvents.map((event) => <button key={event.id} type="button" onClick={() => inspectEvent(event)} className="w-full rounded border border-white/[0.06] bg-white/[0.025] p-2 text-left hover:bg-white/[0.06]"><div className="flex items-center justify-between gap-2"><span className="truncate text-[9px] font-bold text-white/80">{event.title}</span><span className="text-[7px] uppercase text-white/30">{event.layer}</span></div>{event.summary && <div className="mt-1 text-[8px] text-white/40">{event.summary}</div>}</button>)}</div></aside>
 
       {selectedEvent && <aside className="absolute bottom-14 right-3 z-40 w-80 max-w-[calc(100vw-24px)] rounded-lg border border-white/10 bg-[#070a0f]/95 p-4 shadow-2xl backdrop-blur-xl"><div className="flex items-start justify-between gap-3"><div><div className="text-[8px] tracking-[0.2em] text-white/35">EVENT DETAIL</div><h2 className="mt-1 text-sm font-bold">{selectedEvent.title}</h2></div><button type="button" onClick={() => setSelectedEvent(null)}><X className="h-4 w-4 text-white/40" /></button></div>{selectedEvent.summary && <p className="mt-3 text-[9px] leading-relaxed text-white/55">{selectedEvent.summary}</p>}<div className="mt-3 grid grid-cols-2 gap-2 text-[8px] text-white/40"><div>SEVERITY<br /><strong className="text-white/70">{selectedEvent.severity.toUpperCase()}</strong></div><div>SOURCE<br /><strong className="text-white/70">{selectedEvent.source?.name ?? 'Unknown'}</strong></div><div>OBSERVED<br /><strong className="text-white/70">{new Date(selectedEvent.observedAt).toLocaleString('pt-PT')}</strong></div><div>LOCATION<br /><strong className="text-white/70">{selectedEvent.location ? `${selectedEvent.location.latitude.toFixed(2)}, ${selectedEvent.location.longitude.toFixed(2)}` : '—'}</strong></div></div>{selectedEvent.source?.url && <a href={selectedEvent.source.url} target="_blank" rel="noreferrer" className="mt-4 block text-[8px] tracking-wide text-cyan-300/70 hover:text-cyan-200">OPEN SOURCE →</a>}</aside>}
+
+      <OlhosCameraViewer camera={selectedCamera} onClose={() => setSelectedCamera(null)} onLocate={(lat, lng) => setFocus({ lat, lng, zoom: 12, ts: Date.now() })} />
 
       <footer className="absolute bottom-3 left-3 right-3 z-20 flex items-center justify-between gap-3 text-[8px] tracking-[0.14em] text-white/35"><div className="flex items-center gap-3 rounded border border-white/10 bg-[#070a0f]/85 px-3 py-2 backdrop-blur-xl"><ShieldCheck className="h-3.5 w-3.5 text-emerald-400/70" /><span>SOURCE GOVERNANCE: PUBLIC + AUTHORIZED</span></div><div className="hidden items-center gap-3 rounded border border-white/10 bg-[#070a0f]/85 px-3 py-2 backdrop-blur-xl md:flex"><span>LAST SYNC: {overview ? new Date(overview.generatedAt).toLocaleTimeString('pt-PT') : '—'}</span><span className="text-white/15">|</span><span>OBSERVATION ≠ INTERPRETATION</span></div></footer>
     </main>
