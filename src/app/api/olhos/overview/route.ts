@@ -6,10 +6,12 @@ export const dynamic = 'force-dynamic';
 
 const MZ = MOZAMBIQUE.bounds;
 
-async function earthquakes() {
+type FeedResult = { events: any[]; source: any | null; status?: string };
+
+async function earthquakes(): Promise<FeedResult> {
   try {
     const response = await fetch('https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/2.5_day.geojson', { next: { revalidate: 60 } });
-    if (!response.ok) return { events: [], source: null };
+    if (!response.ok) return { events: [], source: null, status: 'unavailable' };
     const feed = await response.json();
     const events = (feed.features ?? []).filter((feature: any) => {
       const [longitude, latitude] = feature.geometry?.coordinates ?? [];
@@ -26,13 +28,13 @@ async function earthquakes() {
       source: { id: 'usgs-earthquakes', name: 'USGS Earthquakes', url: 'https://earthquake.usgs.gov/earthquakes/feed/', access: 'public', retrievedAt: new Date().toISOString() },
       tags: ['USGS', 'GeoJSON'],
     }));
-    return { events, source: { id: 'usgs-earthquakes', name: 'USGS Earthquakes', access: 'public' } };
+    return { events, source: { id: 'usgs-earthquakes', name: 'USGS Earthquakes', access: 'public' }, status: 'live' };
   } catch {
-    return { events: [], source: null };
+    return { events: [], source: null, status: 'error' };
   }
 }
 
-async function weather() {
+async function weather(): Promise<{ current: any | null; source: any | null; status: string }> {
   try {
     const url = new URL('https://api.open-meteo.com/v1/forecast');
     url.searchParams.set('latitude', String(MOZAMBIQUE.center.latitude));
@@ -40,20 +42,31 @@ async function weather() {
     url.searchParams.set('current', 'temperature_2m,relative_humidity_2m,precipitation,weather_code,wind_speed_10m,wind_gusts_10m');
     url.searchParams.set('timezone', 'Africa/Maputo');
     const response = await fetch(url, { next: { revalidate: 300 } });
-    if (!response.ok) return { current: null, source: null };
+    if (!response.ok) return { current: null, source: null, status: 'unavailable' };
     const data = await response.json();
-    return {
-      current: data.current ?? null,
-      source: { id: 'open-meteo', name: 'Open-Meteo', url: 'https://open-meteo.com/', access: 'public', licenseOrTerms: 'CC BY 4.0', retrievedAt: new Date().toISOString() },
-    };
+    return { current: data.current ?? null, source: { id: 'open-meteo', name: 'Open-Meteo', url: 'https://open-meteo.com/', access: 'public', licenseOrTerms: 'CC BY 4.0', retrievedAt: new Date().toISOString() }, status: 'live' };
   } catch {
-    return { current: null, source: null };
+    return { current: null, source: null, status: 'error' };
+  }
+}
+
+async function fires(): Promise<FeedResult> {
+  try {
+    const response = await fetch(new URL('/api/olhos/fires', process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'), { cache: 'no-store' });
+    if (!response.ok) return { events: [], source: null, status: 'unavailable' };
+    const data = await response.json();
+    return { events: data.events ?? [], source: data.status === 'live' ? { id: 'nasa-firms', name: 'NASA FIRMS', access: 'public' } : null, status: data.status ?? 'unavailable' };
+  } catch {
+    // In Vercel/serverless, the absolute internal request can be unavailable.
+    // Do not manufacture detections; simply report the feed as unavailable.
+    return { events: [], source: null, status: 'unavailable' };
   }
 }
 
 export async function GET() {
   const generatedAt = new Date().toISOString();
-  const [earthquakeData, weatherData] = await Promise.all([earthquakes(), weather()]);
+  const [earthquakeData, weatherData, fireData] = await Promise.all([earthquakes(), weather(), fires()]);
+
   const weatherEvent = weatherData.current ? [{
     id: 'weather-national-center',
     layer: 'weather',
@@ -66,11 +79,13 @@ export async function GET() {
     source: weatherData.source,
     tags: ['weather', 'national-center'],
   }] : [];
-  const events = [...earthquakeData.events, ...weatherEvent];
+
+  const events = [...earthquakeData.events, ...weatherEvent, ...fireData.events];
   const counts = Object.fromEntries(OLHOS_LAYERS.map((layer) => [layer.id, events.filter((event: { layer?: string }) => event.layer === layer.id).length]));
   const feeds = {
-    earthquakes: earthquakeData.source ? 'live' : 'unavailable',
-    weather: weatherData.source ? 'live' : 'unavailable',
+    earthquakes: earthquakeData.status ?? 'unavailable',
+    weather: weatherData.status,
+    fires: fireData.status ?? 'unavailable',
   };
   const liveFeedCount = Object.values(feeds).filter((value) => value === 'live').length;
 
@@ -81,7 +96,7 @@ export async function GET() {
     mode: 'public-and-authorized-data',
     layers: OLHOS_LAYERS,
     sources: OLHOS_SOURCES,
-    availableSources: [earthquakeData.source, weatherData.source].filter(Boolean),
+    availableSources: [earthquakeData.source, weatherData.source, fireData.source].filter(Boolean),
     events,
     counts: { total: events.length, ...counts },
     health: { status: liveFeedCount > 0 ? 'live' : 'degraded', feeds },
